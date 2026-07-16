@@ -105,8 +105,8 @@ let port = null;
 let reader = null;
 let readableStreamClosed = null;
 let keepReading = false;
-let scrollToken = 0;
-let scrolling = false;
+let taskToken = 0;
+let taskRunning = false;
 const badgeClearTimeouts = new WeakMap();
 
 function setStatus(state, message) {
@@ -131,7 +131,7 @@ function appendLog(line) {
 function setConnectedUi(connected) {
   connectButton.disabled = connected;
   disconnectButton.disabled = !connected;
-  inputText.disabled = !connected;
+  updateInputAvailability();
   sendButton.disabled = !connected;
   hexInput.disabled = !connected;
   hexSendButton.disabled = !connected;
@@ -143,13 +143,13 @@ function setConnectedUi(connected) {
     resetBadge(badgeDisplay);
     resetBadge(badgeButtonC);
     resetBadge(badgeButtonD);
-    cancelScroll();
+    cancelTask();
   }
-  updateScrollUi();
+  updateTaskUi();
 }
 
-function updateScrollUi() {
-  stopButton.disabled = !scrolling;
+function updateTaskUi() {
+  stopButton.disabled = !taskRunning;
 }
 
 // Body button badges are transient event indicators, not persistent state:
@@ -341,9 +341,9 @@ function buildScrollFrames(text) {
 }
 
 async function scrollText(text) {
-  const token = ++scrollToken;
-  scrolling = true;
-  updateScrollUi();
+  const token = ++taskToken;
+  taskRunning = true;
+  updateTaskUi();
 
   const frames = buildScrollFrames(text);
   // When the whole text fits in one window, hold right-justified (the frame
@@ -354,9 +354,9 @@ async function scrollText(text) {
   const holdFrameIndex = contentLength <= DISPLAY_WIDTH ? contentLength : -1;
 
   // Repeats until cancelled (stop button, a new send, or disconnect).
-  while (token === scrollToken) {
+  while (token === taskToken) {
     for (let i = 0; i < frames.length; i++) {
-      if (token !== scrollToken || !port) {
+      if (token !== taskToken || !port) {
         return;
       }
       await sendRaw(frames[i]);
@@ -365,20 +365,46 @@ async function scrollText(text) {
   }
 }
 
-function cancelScroll() {
-  if (!scrolling) {
-    return;
-  }
-  scrollToken++; // invalidate the running scroll loop; it exits at its next step
-  scrolling = false;
-  updateScrollUi();
+// "12-34 .56" for 12:34:56 (24-hour clock). The space+period pair is one
+// display unit whose digit stays blank but whose decimal point lights up,
+// giving a small separator dot between the minutes and seconds pairs.
+function formatClock(date) {
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  const ss = String(date.getSeconds()).padStart(2, "0");
+  return `${hh}-${mm} .${ss}`;
 }
 
-function stopScroll() {
-  if (!scrolling) {
+async function runClock() {
+  const token = ++taskToken;
+  taskRunning = true;
+  updateTaskUi();
+
+  while (token === taskToken) {
+    if (!port) {
+      return;
+    }
+    await sendRaw(formatClock(new Date()));
+    // Align to the next wall-clock second rather than sleeping a flat
+    // 1000ms, so the displayed time doesn't slowly drift.
+    await sleep(1000 - (Date.now() % 1000));
+  }
+}
+
+function cancelTask() {
+  if (!taskRunning) {
     return;
   }
-  cancelScroll();
+  taskToken++; // invalidate the running task loop; it exits at its next step
+  taskRunning = false;
+  updateTaskUi();
+}
+
+function stopTask() {
+  if (!taskRunning) {
+    return;
+  }
+  cancelTask();
   sendRaw("@CLR");
 }
 
@@ -387,18 +413,31 @@ function getDisplayMode() {
   return checked ? checked.value : "scroll";
 }
 
+// The clock mode doesn't read from the text box at all, so it's disabled
+// while that mode is selected to make that clear.
+function updateInputAvailability() {
+  inputText.disabled = !port || getDisplayMode() === "clock";
+}
+
 function handleSend() {
+  const mode = getDisplayMode();
+
+  if (mode === "clock") {
+    runClock();
+    return;
+  }
+
   const text = inputText.value;
   if (!text) {
     return;
   }
 
-  if (getDisplayMode() === "normal") {
+  if (mode === "normal") {
     if (displayLength(text) > DISPLAY_WIDTH) {
       setError(`通常表示では最大${DISPLAY_WIDTH}文字までしか表示できません（ピリオドは文字数に含みません）`);
       return;
     }
-    cancelScroll();
+    cancelTask();
     sendRaw(text);
     return;
   }
@@ -411,7 +450,7 @@ function handleSend() {
 }
 
 function handleCommandButtonClick(event) {
-  cancelScroll();
+  cancelTask();
   const command = event.currentTarget.dataset.command;
   sendRaw(command);
 }
@@ -422,7 +461,7 @@ function handleHexSend() {
     setError("@HEXコマンドには16桁の16進数を入力してください");
     return;
   }
-  cancelScroll();
+  cancelTask();
   sendRaw("@HEX" + value);
 }
 
@@ -452,12 +491,16 @@ async function init() {
   disconnectButton.addEventListener("click", disconnect);
 
   sendButton.addEventListener("click", handleSend);
-  stopButton.addEventListener("click", stopScroll);
+  stopButton.addEventListener("click", stopTask);
   inputText.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
       handleSend();
     }
+  });
+
+  displayModeRadios.forEach((radio) => {
+    radio.addEventListener("change", updateInputAvailability);
   });
 
   cmdButtons.forEach((button) => {
