@@ -4,7 +4,10 @@ const POLYFILL_URL = "https://cdn.jsdelivr.net/npm/web-serial-polyfill@1.0.15/di
 // up to 8 ASCII characters displayed as-is on the 7-segment display.
 const BAUD_RATE = 115200;
 const LINE_ENDING = "\r\n";
-const MAX_CHARS = 8;
+const DISPLAY_WIDTH = 8;
+const MAX_INPUT_LENGTH = 40;
+const SCROLL_FRAME_INTERVAL_MS = 250;
+const SCROLL_HOLD_MS = 1500;
 
 function isAndroid() {
   if (navigator.userAgentData && navigator.userAgentData.platform) {
@@ -84,6 +87,7 @@ const connectButton = document.getElementById("connect-button");
 const disconnectButton = document.getElementById("disconnect-button");
 const inputText = document.getElementById("input-text");
 const sendButton = document.getElementById("send-button");
+const stopButton = document.getElementById("stop-button");
 const outputText = document.getElementById("output-text");
 const clearLogButton = document.getElementById("clear-log-button");
 const cmdButtons = Array.from(document.querySelectorAll(".cmd-button"));
@@ -98,6 +102,8 @@ let port = null;
 let reader = null;
 let readableStreamClosed = null;
 let keepReading = false;
+let scrollToken = 0;
+let scrolling = false;
 
 function setStatus(state, message) {
   statusDot.classList.remove("connected", "error");
@@ -132,7 +138,13 @@ function setConnectedUi(connected) {
     setBadge(badgeBrightness, "-");
     setBadge(badgeDisplay, "-");
     setBadge(badgeOther, "-");
+    cancelScroll();
   }
+  updateScrollUi();
+}
+
+function updateScrollUi() {
+  stopButton.disabled = !scrolling;
 }
 
 function setBadge(element, value) {
@@ -257,21 +269,82 @@ async function sendRaw(text) {
   }
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Nanapo can only ever show DISPLAY_WIDTH characters at once, so both a long
+// string and a short one are displayed the same way: pad with a blank
+// display's worth of spaces on each side, then slide an 8-character window
+// across it one step at a time. For text that already fits within one
+// window, this naturally produces a scroll-in / scroll-out animation; for
+// longer text, the same sliding window becomes a continuous marquee.
+function buildScrollFrames(text) {
+  const padding = " ".repeat(DISPLAY_WIDTH);
+  const padded = padding + text + padding;
+  const frames = [];
+  for (let i = 0; i <= padded.length - DISPLAY_WIDTH; i++) {
+    frames.push(padded.slice(i, i + DISPLAY_WIDTH));
+  }
+  return frames;
+}
+
+async function scrollText(text) {
+  const token = ++scrollToken;
+  scrolling = true;
+  updateScrollUi();
+
+  const frames = buildScrollFrames(text);
+  // When the whole text fits in one window, hold on the fully-settled frame
+  // (right after the leading padding) so it's actually readable before it
+  // scrolls back out, instead of just flashing past.
+  const holdFrameIndex = text.length <= DISPLAY_WIDTH ? DISPLAY_WIDTH : -1;
+
+  for (let i = 0; i < frames.length; i++) {
+    if (token !== scrollToken || !port) {
+      return;
+    }
+    await sendRaw(frames[i]);
+    await sleep(i === holdFrameIndex ? SCROLL_HOLD_MS : SCROLL_FRAME_INTERVAL_MS);
+  }
+
+  if (token === scrollToken) {
+    scrolling = false;
+    updateScrollUi();
+  }
+}
+
+function cancelScroll() {
+  if (!scrolling) {
+    return;
+  }
+  scrollToken++; // invalidate the running scroll loop; it exits at its next step
+  scrolling = false;
+  updateScrollUi();
+}
+
+function stopScroll() {
+  if (!scrolling) {
+    return;
+  }
+  cancelScroll();
+  sendRaw("@CLR");
+}
+
 function handleSend() {
   const text = inputText.value;
   if (!text) {
     return;
   }
-  // The 8-character limit only applies to plain display text, not to @-
-  // prefixed protocol commands (e.g. @HEXxxxxxxxxxxxxxxxx is 20 characters).
-  if (text.length > MAX_CHARS) {
-    setError(`Nanapoは最大${MAX_CHARS}文字までしか表示できません`);
+  if (text.length > MAX_INPUT_LENGTH) {
+    setError(`文字列が長すぎます（最大${MAX_INPUT_LENGTH}文字）`);
     return;
   }
-  sendRaw(text);
+  scrollText(text);
 }
 
 function handleCommandButtonClick(event) {
+  cancelScroll();
   const command = event.currentTarget.dataset.command;
   sendRaw(command);
 }
@@ -282,6 +355,7 @@ function handleHexSend() {
     setError("@HEXコマンドには16桁の16進数を入力してください");
     return;
   }
+  cancelScroll();
   sendRaw("@HEX" + value);
 }
 
@@ -311,6 +385,7 @@ async function init() {
   disconnectButton.addEventListener("click", disconnect);
 
   sendButton.addEventListener("click", handleSend);
+  stopButton.addEventListener("click", stopScroll);
   inputText.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
