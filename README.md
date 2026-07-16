@@ -14,6 +14,7 @@
 - **Android**: Chrome（[WebUSB API](https://developer.mozilla.org/en-US/docs/Web/API/WebUSB_API) 経由。Android版Chromeの Web Serial API はBluetoothシリアルのみの部分対応でUSBシリアルには使えないため、Android端末を検出した場合は常に [google/web-serial-polyfill](https://github.com/google/web-serial-polyfill) でWebUSB上にSerial互換のAPIを実装して利用します）
 - HTTPS（またはlocalhost）での配信が必須です。GitHub Pagesはこれを満たします。
 - Android端末の機種・OSによっては、標準のUSBシリアルドライバが先にデバイスを占有し、WebUSB経由で掴めない場合があります。その場合はブラウザからの接続に失敗します。
+- ページを開くと「受信ログ」に `[判定]` で始まる行が出力され、Web Serial APIとWebUSB（ポリフィル）のどちらが使われているかを確認できます。想定と異なるAPIが使われている場合はこのログを確認してください。
 
 ## 使い方
 

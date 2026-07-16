@@ -13,18 +13,46 @@ function isAndroid() {
   return /Android/i.test(navigator.userAgent);
 }
 
+function logDiagnostic(message) {
+  appendLog("[判定] " + message);
+}
+
 // Desktop Chrome/Edge expose navigator.serial natively, so they never need to
 // fetch the polyfill. Android Chrome does implement navigator.serial, but
 // only for Bluetooth serial devices, not USB - so on Android we always force
 // the WebUSB-based polyfill, loaded on demand via dynamic import.
 async function resolveSerialApi() {
-  if (!isAndroid() && "serial" in navigator) {
+  const androidDetected = isAndroid();
+  const hasNativeSerial = "serial" in navigator;
+  const hasUsb = "usb" in navigator;
+
+  logDiagnostic("navigator.userAgent: " + navigator.userAgent);
+  logDiagnostic(
+    `Android判定: ${androidDetected ? "はい" : "いいえ"} / navigator.serial: ${hasNativeSerial ? "あり" : "なし"} / navigator.usb: ${hasUsb ? "あり" : "なし"}`
+  );
+
+  if (!androidDetected && hasNativeSerial) {
+    logDiagnostic("使用API: Web Serial API（ネイティブ、navigator.serial）");
     return navigator.serial;
   }
-  if ("usb" in navigator) {
-    const polyfillModule = await import(POLYFILL_URL);
-    return polyfillModule.serial;
+
+  if (hasUsb) {
+    logDiagnostic(
+      androidDetected
+        ? "使用API: WebUSB + web-serial-polyfill（Android検出のため強制）"
+        : "使用API: WebUSB + web-serial-polyfill（navigator.serial非対応のため）"
+    );
+    try {
+      const polyfillModule = await import(POLYFILL_URL);
+      logDiagnostic("web-serial-polyfillの読み込みに成功しました");
+      return polyfillModule.serial;
+    } catch (error) {
+      logDiagnostic("web-serial-polyfillの読み込みに失敗しました: " + error.message);
+      throw error;
+    }
   }
+
+  logDiagnostic("使用API: なし（Web Serial APIにもWebUSB APIにも非対応）");
   return null;
 }
 
@@ -273,7 +301,9 @@ async function init() {
     document.getElementById("send-panel").hidden = true;
     document.getElementById("command-panel").hidden = true;
     document.getElementById("button-status-panel").hidden = true;
-    document.getElementById("log-panel").hidden = true;
+    // Keep the log panel visible even when unsupported: it holds the
+    // WebSerial/WebUSB diagnostic trail from resolveSerialApi(), which is
+    // exactly what's needed to debug why detection failed on a given device.
     return;
   }
 
