@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nanapo Web Controller</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>Nanapo Web Controller</h1>
+    <p class="subtitle">USB 7セグディスプレイ「Nanapo (AD7SGPR)」をブラウザから操作します</p>
+  </header>
+
+  <section id="unsupported-message" hidden>
+    <p>
+      お使いのブラウザはWeb Serial APIにもWebUSB APIにも対応していません。
+      PCではChromeまたはEdge、Androidでは Chrome の最新版をお使いください。
+    </p>
+  </section>
+
+  <section id="connection-panel">
+    <div class="status-row">
+      <span id="status-dot" class="status-dot" aria-hidden="true"></span>
+      <span id="status-text">未接続</span>
+    </div>
+    <div class="button-row">
+      <button id="connect-button" type="button">接続</button>
+      <button id="disconnect-button" type="button" disabled>切断</button>
+    </div>
+    <p id="error-text" class="error-text" role="alert"></p>
+  </section>
+
+  <section id="send-panel">
+    <label for="input-text">表示する文字列（最大8文字）</label>
+    <div class="send-row">
+      <input id="input-text" type="text" maxlength="8" placeholder="例: HELLO" autocomplete="off" disabled>
+      <button id="send-button" type="button" disabled>送信</button>
+    </div>
+  </section>
+
+  <section id="log-panel">
+    <div class="log-header">
+      <label for="output-text">受信ログ</label>
+      <button id="clear-log-button" type="button">クリア</button>
+    </div>
+    <textarea id="output-text" readonly rows="8"></textarea>
+  </section>
+
+  <footer>
+    <p>
+      Nanapo (AD7SGPR) は
+      <a href="https://bit-trade-one.co.jp/ad7sgpr/" target="_blank" rel="noopener noreferrer">ビット・トレード・ワン</a>
+      の製品です。Androidでの接続には
+      <a href="https://github.com/google/web-serial-polyfill" target="_blank" rel="noopener noreferrer">web-serial-polyfill</a>
+      を使用しています。
+    </p>
+  </footer>
+</main>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
