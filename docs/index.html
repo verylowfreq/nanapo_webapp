@@ -40,6 +40,79 @@
     </div>
   </section>
 
+  <section id="command-panel">
+    <h2>各種コマンド</h2>
+
+    <div class="command-group">
+      <span class="command-group-label">表示制御</span>
+      <div class="button-grid">
+        <button type="button" class="cmd-button" data-command="@CLR" disabled>@CLR<br><small>クリア</small></button>
+        <button type="button" class="cmd-button" data-command="@ANI0" disabled>@ANI0<br><small>アニメなし</small></button>
+        <button type="button" class="cmd-button" data-command="@ANI1" disabled>@ANI1<br><small>スロット風</small></button>
+        <button type="button" class="cmd-button" data-command="@ANI2" disabled>@ANI2<br><small>回転</small></button>
+      </div>
+    </div>
+
+    <div class="command-group">
+      <span class="command-group-label">7セグ電源</span>
+      <div class="button-grid">
+        <button type="button" class="cmd-button" data-command="@7SG1" disabled>@7SG1<br><small>点灯</small></button>
+        <button type="button" class="cmd-button" data-command="@7SG0" disabled>@7SG0<br><small>消灯</small></button>
+        <button type="button" class="cmd-button" data-command="@SGR" disabled>@SGR<br><small>状態取得</small></button>
+      </div>
+    </div>
+
+    <div class="command-group">
+      <span class="command-group-label">輝度（0〜7）</span>
+      <div class="button-grid button-grid-brightness">
+        <button type="button" class="cmd-button" data-command="@BRI0" disabled>0</button>
+        <button type="button" class="cmd-button" data-command="@BRI1" disabled>1</button>
+        <button type="button" class="cmd-button" data-command="@BRI2" disabled>2</button>
+        <button type="button" class="cmd-button" data-command="@BRI3" disabled>3</button>
+        <button type="button" class="cmd-button" data-command="@BRI4" disabled>4</button>
+        <button type="button" class="cmd-button" data-command="@BRI5" disabled>5</button>
+        <button type="button" class="cmd-button" data-command="@BRI6" disabled>6</button>
+        <button type="button" class="cmd-button" data-command="@BRI7" disabled>7</button>
+        <button type="button" class="cmd-button" data-command="@BRR" disabled>取得</button>
+      </div>
+    </div>
+
+    <div class="command-group">
+      <span class="command-group-label">セグメント個別制御（@HEX）</span>
+      <div class="button-grid">
+        <button type="button" class="cmd-button" data-command="@HEXFFFFFFFFFFFFFFFF" disabled>全点灯</button>
+        <button type="button" class="cmd-button" data-command="@HEX0000000000000000" disabled>全消灯</button>
+      </div>
+      <div class="send-row hex-row">
+        <span class="hex-prefix">@HEX</span>
+        <input id="hex-input" type="text" maxlength="16" placeholder="16桁の16進数" autocomplete="off" disabled>
+        <button id="hex-send-button" type="button" disabled>送信</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="button-status-panel">
+    <h2>本体ボタン状態</h2>
+    <p class="panel-note">
+      Nanapo本体のボタンA/Bを押すと下記の状態が連動して更新されます（コマンド送信時にも同様に更新されます）。
+      ボタンC/Dは仕様が非公開のため、判別できない通知として表示します。
+    </p>
+    <div class="badge-row">
+      <div id="badge-brightness" class="status-badge">
+        <span class="status-badge-label">ボタンA / 輝度</span>
+        <span class="status-badge-value">-</span>
+      </div>
+      <div id="badge-display" class="status-badge">
+        <span class="status-badge-label">ボタンB / 7セグ表示</span>
+        <span class="status-badge-value">-</span>
+      </div>
+      <div id="badge-other" class="status-badge">
+        <span class="status-badge-label">ボタンC/D（未知の通知）</span>
+        <span class="status-badge-value">-</span>
+      </div>
+    </div>
+  </section>
+
   <section id="log-panel">
     <div class="log-header">
       <label for="output-text">受信ログ</label>

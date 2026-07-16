@@ -58,6 +58,12 @@ const inputText = document.getElementById("input-text");
 const sendButton = document.getElementById("send-button");
 const outputText = document.getElementById("output-text");
 const clearLogButton = document.getElementById("clear-log-button");
+const cmdButtons = Array.from(document.querySelectorAll(".cmd-button"));
+const hexInput = document.getElementById("hex-input");
+const hexSendButton = document.getElementById("hex-send-button");
+const badgeBrightness = document.querySelector("#badge-brightness .status-badge-value");
+const badgeDisplay = document.querySelector("#badge-display .status-badge-value");
+const badgeOther = document.querySelector("#badge-other .status-badge-value");
 
 let serialApi = null;
 let port = null;
@@ -89,6 +95,50 @@ function setConnectedUi(connected) {
   disconnectButton.disabled = !connected;
   inputText.disabled = !connected;
   sendButton.disabled = !connected;
+  hexInput.disabled = !connected;
+  hexSendButton.disabled = !connected;
+  cmdButtons.forEach((button) => {
+    button.disabled = !connected;
+  });
+  if (!connected) {
+    setBadge(badgeBrightness, "-");
+    setBadge(badgeDisplay, "-");
+    setBadge(badgeOther, "-");
+  }
+}
+
+function setBadge(element, value) {
+  element.textContent = value;
+  const badge = element.closest(".status-badge");
+  badge.classList.remove("flash");
+  // Force a reflow so the flash animation restarts on repeated updates.
+  void badge.offsetWidth;
+  badge.classList.add("flash");
+}
+
+function handleIncomingLine(line) {
+  appendLog(line);
+
+  const brightnessMatch = line.match(/brightness:\s*(\d+)/i);
+  if (brightnessMatch) {
+    setBadge(badgeBrightness, brightnessMatch[1]);
+    return;
+  }
+  if (/7sgOn/i.test(line) || /is ON mode/i.test(line)) {
+    setBadge(badgeDisplay, "ON");
+    return;
+  }
+  if (/7sgOff/i.test(line) || /is OFF mode/i.test(line)) {
+    setBadge(badgeDisplay, "OFF");
+    return;
+  }
+  // Lines that echo a command we sent (rxData:...) or report a known error
+  // code are not spontaneous device notifications, so they don't count as a
+  // possible C/D button press.
+  if (/^rxData:/i.test(line) || /^E\d:/i.test(line) || line === "") {
+    return;
+  }
+  setBadge(badgeOther, line);
 }
 
 async function readLoop() {
@@ -105,7 +155,7 @@ async function readLoop() {
         break;
       }
       if (value) {
-        appendLog(value);
+        handleIncomingLine(value);
       }
     }
   } catch (error) {
@@ -162,12 +212,8 @@ async function disconnect() {
   }
 }
 
-async function sendText(text) {
+async function sendRaw(text) {
   if (!port || !port.writable) {
-    return;
-  }
-  if (text.length > MAX_CHARS) {
-    setError(`Nanapoは最大${MAX_CHARS}文字までしか表示できません`);
     return;
   }
   setError("");
@@ -188,7 +234,27 @@ function handleSend() {
   if (!text) {
     return;
   }
-  sendText(text);
+  // The 8-character limit only applies to plain display text, not to @-
+  // prefixed protocol commands (e.g. @HEXxxxxxxxxxxxxxxxx is 20 characters).
+  if (text.length > MAX_CHARS) {
+    setError(`Nanapoは最大${MAX_CHARS}文字までしか表示できません`);
+    return;
+  }
+  sendRaw(text);
+}
+
+function handleCommandButtonClick(event) {
+  const command = event.currentTarget.dataset.command;
+  sendRaw(command);
+}
+
+function handleHexSend() {
+  const value = hexInput.value.trim();
+  if (!/^[0-9A-Fa-f]{16}$/.test(value)) {
+    setError("@HEXコマンドには16桁の16進数を入力してください");
+    return;
+  }
+  sendRaw("@HEX" + value);
 }
 
 async function init() {
@@ -205,6 +271,8 @@ async function init() {
     unsupportedMessage.hidden = false;
     connectionPanel.hidden = true;
     document.getElementById("send-panel").hidden = true;
+    document.getElementById("command-panel").hidden = true;
+    document.getElementById("button-status-panel").hidden = true;
     document.getElementById("log-panel").hidden = true;
     return;
   }
@@ -217,6 +285,18 @@ async function init() {
     if (event.key === "Enter") {
       event.preventDefault();
       handleSend();
+    }
+  });
+
+  cmdButtons.forEach((button) => {
+    button.addEventListener("click", handleCommandButtonClick);
+  });
+
+  hexSendButton.addEventListener("click", handleHexSend);
+  hexInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleHexSend();
     }
   });
 
