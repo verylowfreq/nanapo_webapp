@@ -33,7 +33,7 @@
   </section>
 
   <section id="send-panel">
-    <label for="input-text">表示する文字列</label>
+    <label for="input-text">表示する文字列（ピリオド「.」は小数点として扱われ文字数に含まれません）</label>
     <div class="mode-row" role="radiogroup" aria-label="表示モード">
       <label class="mode-option">
         <input type="radio" name="display-mode" value="scroll" checked>
@@ -45,7 +45,7 @@
       </label>
     </div>
     <div class="send-row">
-      <input id="input-text" type="text" maxlength="40" placeholder="例: HELLO WORLD" autocomplete="off" disabled>
+      <input id="input-text" type="text" maxlength="80" placeholder="例: HELLO WORLD" autocomplete="off" disabled>
       <button id="send-button" type="button" disabled>送信</button>
       <button id="stop-button" type="button" disabled>停止</button>
     </div>

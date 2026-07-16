@@ -301,18 +301,41 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Nanapo can only ever show DISPLAY_WIDTH characters at once, so both a long
-// string and a short one are displayed the same way: pad with a blank
-// display's worth of spaces on each side, then slide an 8-character window
-// across it one step at a time. For text that already fits within one
-// window, this naturally produces a scroll-in / scroll-out animation; for
-// longer text, the same sliding window becomes a continuous marquee.
+// On the real device a "." doesn't take a digit position of its own - it
+// lights the decimal point of the digit right before it. So for both
+// length-limit checks and the scroll window below, a period is grouped onto
+// the end of the preceding character instead of counting as its own unit. A
+// leading "." with nothing before it has nowhere to attach, so it falls back
+// to occupying a unit by itself.
+function toDisplayUnits(text) {
+  const units = [];
+  for (const ch of text) {
+    if (ch === "." && units.length > 0) {
+      units[units.length - 1] += ch;
+    } else {
+      units.push(ch);
+    }
+  }
+  return units;
+}
+
+function displayLength(text) {
+  return toDisplayUnits(text).length;
+}
+
+// Nanapo can only ever show DISPLAY_WIDTH digit positions at once, so both a
+// long string and a short one are displayed the same way: pad with a blank
+// display's worth of units on each side, then slide an 8-unit window across
+// it one step at a time. For text that already fits within one window, this
+// naturally produces a scroll-in / scroll-out animation; for longer text,
+// the same sliding window becomes a continuous marquee.
 function buildScrollFrames(text) {
-  const padding = " ".repeat(DISPLAY_WIDTH);
-  const padded = padding + text + padding;
+  const units = toDisplayUnits(text);
+  const padding = Array(DISPLAY_WIDTH).fill(" ");
+  const paddedUnits = [...padding, ...units, ...padding];
   const frames = [];
-  for (let i = 0; i <= padded.length - DISPLAY_WIDTH; i++) {
-    frames.push(padded.slice(i, i + DISPLAY_WIDTH));
+  for (let i = 0; i <= paddedUnits.length - DISPLAY_WIDTH; i++) {
+    frames.push(paddedUnits.slice(i, i + DISPLAY_WIDTH).join(""));
   }
   return frames;
 }
@@ -324,10 +347,11 @@ async function scrollText(text) {
 
   const frames = buildScrollFrames(text);
   // When the whole text fits in one window, hold right-justified (the frame
-  // where the window ends exactly at the last character of the text) so
-  // it's actually readable before it scrolls back out, instead of just
-  // flashing past.
-  const holdFrameIndex = text.length <= DISPLAY_WIDTH ? text.length : -1;
+  // where the window ends exactly at the last unit of the text) so it's
+  // actually readable before it scrolls back out, instead of just flashing
+  // past.
+  const contentLength = displayLength(text);
+  const holdFrameIndex = contentLength <= DISPLAY_WIDTH ? contentLength : -1;
 
   // Repeats until cancelled (stop button, a new send, or disconnect).
   while (token === scrollToken) {
@@ -370,8 +394,8 @@ function handleSend() {
   }
 
   if (getDisplayMode() === "normal") {
-    if (text.length > DISPLAY_WIDTH) {
-      setError(`通常表示では最大${DISPLAY_WIDTH}文字までしか表示できません`);
+    if (displayLength(text) > DISPLAY_WIDTH) {
+      setError(`通常表示では最大${DISPLAY_WIDTH}文字までしか表示できません（ピリオドは文字数に含みません）`);
       return;
     }
     cancelScroll();
@@ -379,8 +403,8 @@ function handleSend() {
     return;
   }
 
-  if (text.length > MAX_INPUT_LENGTH) {
-    setError(`文字列が長すぎます（最大${MAX_INPUT_LENGTH}文字）`);
+  if (displayLength(text) > MAX_INPUT_LENGTH) {
+    setError(`文字列が長すぎます（最大${MAX_INPUT_LENGTH}文字、ピリオドは文字数に含みません）`);
     return;
   }
   scrollText(text);
