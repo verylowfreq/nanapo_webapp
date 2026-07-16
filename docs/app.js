@@ -8,6 +8,7 @@ const DISPLAY_WIDTH = 8;
 const MAX_INPUT_LENGTH = 40;
 const SCROLL_FRAME_INTERVAL_MS = 250;
 const SCROLL_HOLD_MS = 1500;
+const BADGE_AUTO_CLEAR_MS = 3000;
 
 function isAndroid() {
   if (navigator.userAgentData && navigator.userAgentData.platform) {
@@ -95,7 +96,9 @@ const hexInput = document.getElementById("hex-input");
 const hexSendButton = document.getElementById("hex-send-button");
 const badgeBrightness = document.querySelector("#badge-brightness .status-badge-value");
 const badgeDisplay = document.querySelector("#badge-display .status-badge-value");
-const badgeOther = document.querySelector("#badge-other .status-badge-value");
+const badgeButtonC = document.querySelector("#badge-button-c .status-badge-value");
+const badgeButtonD = document.querySelector("#badge-button-d .status-badge-value");
+const displayModeRadios = Array.from(document.querySelectorAll('input[name="display-mode"]'));
 
 let serialApi = null;
 let port = null;
@@ -104,6 +107,7 @@ let readableStreamClosed = null;
 let keepReading = false;
 let scrollToken = 0;
 let scrolling = false;
+const badgeClearTimeouts = new WeakMap();
 
 function setStatus(state, message) {
   statusDot.classList.remove("connected", "error");
@@ -135,9 +139,10 @@ function setConnectedUi(connected) {
     button.disabled = !connected;
   });
   if (!connected) {
-    setBadge(badgeBrightness, "-");
-    setBadge(badgeDisplay, "-");
-    setBadge(badgeOther, "-");
+    resetBadge(badgeBrightness);
+    resetBadge(badgeDisplay);
+    resetBadge(badgeButtonC);
+    resetBadge(badgeButtonD);
     cancelScroll();
   }
   updateScrollUi();
@@ -147,6 +152,8 @@ function updateScrollUi() {
   stopButton.disabled = !scrolling;
 }
 
+// Body button badges are transient event indicators, not persistent state:
+// each shows the latest status for BADGE_AUTO_CLEAR_MS, then reverts to "-".
 function setBadge(element, value) {
   element.textContent = value;
   const badge = element.closest(".status-badge");
@@ -154,6 +161,26 @@ function setBadge(element, value) {
   // Force a reflow so the flash animation restarts on repeated updates.
   void badge.offsetWidth;
   badge.classList.add("flash");
+
+  const existingTimeout = badgeClearTimeouts.get(element);
+  if (existingTimeout) {
+    clearTimeout(existingTimeout);
+  }
+  const timeoutId = setTimeout(() => {
+    element.textContent = "-";
+    badgeClearTimeouts.delete(element);
+  }, BADGE_AUTO_CLEAR_MS);
+  badgeClearTimeouts.set(element, timeoutId);
+}
+
+function resetBadge(element) {
+  const existingTimeout = badgeClearTimeouts.get(element);
+  if (existingTimeout) {
+    clearTimeout(existingTimeout);
+    badgeClearTimeouts.delete(element);
+  }
+  element.textContent = "-";
+  element.closest(".status-badge").classList.remove("flash");
 }
 
 function handleIncomingLine(line) {
@@ -172,13 +199,14 @@ function handleIncomingLine(line) {
     setBadge(badgeDisplay, "OFF");
     return;
   }
-  // Lines that echo a command we sent (rxData:...) or report a known error
-  // code are not spontaneous device notifications, so they don't count as a
-  // possible C/D button press.
-  if (/^rxData:/i.test(line) || /^E\d:/i.test(line) || line === "") {
+  if (/^pushC$/i.test(line)) {
+    setBadge(badgeButtonC, "押された");
     return;
   }
-  setBadge(badgeOther, line);
+  if (/^pushD$/i.test(line)) {
+    setBadge(badgeButtonD, "押された");
+    return;
+  }
 }
 
 async function readLoop() {
@@ -295,22 +323,21 @@ async function scrollText(text) {
   updateScrollUi();
 
   const frames = buildScrollFrames(text);
-  // When the whole text fits in one window, hold on the fully-settled frame
-  // (right after the leading padding) so it's actually readable before it
-  // scrolls back out, instead of just flashing past.
-  const holdFrameIndex = text.length <= DISPLAY_WIDTH ? DISPLAY_WIDTH : -1;
+  // When the whole text fits in one window, hold right-justified (the frame
+  // where the window ends exactly at the last character of the text) so
+  // it's actually readable before it scrolls back out, instead of just
+  // flashing past.
+  const holdFrameIndex = text.length <= DISPLAY_WIDTH ? text.length : -1;
 
-  for (let i = 0; i < frames.length; i++) {
-    if (token !== scrollToken || !port) {
-      return;
+  // Repeats until cancelled (stop button, a new send, or disconnect).
+  while (token === scrollToken) {
+    for (let i = 0; i < frames.length; i++) {
+      if (token !== scrollToken || !port) {
+        return;
+      }
+      await sendRaw(frames[i]);
+      await sleep(i === holdFrameIndex ? SCROLL_HOLD_MS : SCROLL_FRAME_INTERVAL_MS);
     }
-    await sendRaw(frames[i]);
-    await sleep(i === holdFrameIndex ? SCROLL_HOLD_MS : SCROLL_FRAME_INTERVAL_MS);
-  }
-
-  if (token === scrollToken) {
-    scrolling = false;
-    updateScrollUi();
   }
 }
 
@@ -331,11 +358,27 @@ function stopScroll() {
   sendRaw("@CLR");
 }
 
+function getDisplayMode() {
+  const checked = displayModeRadios.find((radio) => radio.checked);
+  return checked ? checked.value : "scroll";
+}
+
 function handleSend() {
   const text = inputText.value;
   if (!text) {
     return;
   }
+
+  if (getDisplayMode() === "normal") {
+    if (text.length > DISPLAY_WIDTH) {
+      setError(`通常表示では最大${DISPLAY_WIDTH}文字までしか表示できません`);
+      return;
+    }
+    cancelScroll();
+    sendRaw(text);
+    return;
+  }
+
   if (text.length > MAX_INPUT_LENGTH) {
     setError(`文字列が長すぎます（最大${MAX_INPUT_LENGTH}文字）`);
     return;

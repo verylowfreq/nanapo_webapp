@@ -33,7 +33,17 @@
   </section>
 
   <section id="send-panel">
-    <label for="input-text">表示する文字列（スクロール表示、最大40文字）</label>
+    <label for="input-text">表示する文字列</label>
+    <div class="mode-row" role="radiogroup" aria-label="表示モード">
+      <label class="mode-option">
+        <input type="radio" name="display-mode" value="scroll" checked>
+        スクロール表示（最大40文字、繰り返し）
+      </label>
+      <label class="mode-option">
+        <input type="radio" name="display-mode" value="normal">
+        通常表示（最大8文字、即時）
+      </label>
+    </div>
     <div class="send-row">
       <input id="input-text" type="text" maxlength="40" placeholder="例: HELLO WORLD" autocomplete="off" disabled>
       <button id="send-button" type="button" disabled>送信</button>
@@ -95,8 +105,8 @@
   <section id="button-status-panel">
     <h2>本体ボタン状態</h2>
     <p class="panel-note">
-      Nanapo本体のボタンA/Bを押すと下記の状態が連動して更新されます（コマンド送信時にも同様に更新されます）。
-      ボタンC/Dは仕様が非公開のため、判別できない通知として表示します。
+      Nanapo本体のボタンA〜Dを押すと下記の状態が連動して更新されます（コマンド送信時にも同様に更新されます）。
+      各表示は3秒後に自動的にクリアされます。
     </p>
     <div class="badge-row">
       <div id="badge-brightness" class="status-badge">
@@ -107,8 +117,12 @@
         <span class="status-badge-label">ボタンB / 7セグ表示</span>
         <span class="status-badge-value">-</span>
       </div>
-      <div id="badge-other" class="status-badge">
-        <span class="status-badge-label">ボタンC/D（未知の通知）</span>
+      <div id="badge-button-c" class="status-badge">
+        <span class="status-badge-label">ボタンC</span>
+        <span class="status-badge-value">-</span>
+      </div>
+      <div id="badge-button-d" class="status-badge">
+        <span class="status-badge-label">ボタンD</span>
         <span class="status-badge-value">-</span>
       </div>
     </div>
