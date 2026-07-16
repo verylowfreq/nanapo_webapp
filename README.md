@@ -9,7 +9,7 @@
 ## 対応環境
 
 - **PC**: Google Chrome / Microsoft Edge などのChromium系ブラウザ（[Web Serial API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API) にネイティブ対応）
-- **Android**: Chrome（[WebUSB API](https://developer.mozilla.org/en-US/docs/Web/API/WebUSB_API) 経由。Android版Chromeは Web Serial API 非対応のため、[google/web-serial-polyfill](https://github.com/google/web-serial-polyfill) を用いてWebUSB上にSerial互換のAPIを実装しています）
+- **Android**: Chrome（[WebUSB API](https://developer.mozilla.org/en-US/docs/Web/API/WebUSB_API) 経由。Android版Chromeの Web Serial API はBluetoothシリアルのみの部分対応でUSBシリアルには使えないため、Android端末を検出した場合は常に [google/web-serial-polyfill](https://github.com/google/web-serial-polyfill) でWebUSB上にSerial互換のAPIを実装して利用します）
 - HTTPS（またはlocalhost）での配信が必須です。GitHub Pagesはこれを満たします。
 - Android端末の機種・OSによっては、標準のUSBシリアルドライバが先にデバイスを占有し、WebUSB経由で掴めない場合があります。その場合はブラウザからの接続に失敗します。
 

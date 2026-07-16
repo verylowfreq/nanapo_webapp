@@ -6,11 +6,19 @@ const BAUD_RATE = 115200;
 const LINE_ENDING = "\r\n";
 const MAX_CHARS = 8;
 
+function isAndroid() {
+  if (navigator.userAgentData && navigator.userAgentData.platform) {
+    return navigator.userAgentData.platform === "Android";
+  }
+  return /Android/i.test(navigator.userAgent);
+}
+
 // Desktop Chrome/Edge expose navigator.serial natively, so they never need to
-// fetch the polyfill. Android Chrome only exposes WebUSB, so it is loaded
-// there on demand via dynamic import.
+// fetch the polyfill. Android Chrome does implement navigator.serial, but
+// only for Bluetooth serial devices, not USB - so on Android we always force
+// the WebUSB-based polyfill, loaded on demand via dynamic import.
 async function resolveSerialApi() {
-  if ("serial" in navigator) {
+  if (!isAndroid() && "serial" in navigator) {
     return navigator.serial;
   }
   if ("usb" in navigator) {
